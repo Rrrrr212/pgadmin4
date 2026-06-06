@@ -76,6 +76,8 @@ from pgadmin.browser.server_groups.servers.utils import \
 from pgadmin.misc.workspaces import check_and_delete_adhoc_server
 from pgadmin.utils.driver.psycopg3.typecast import \
     register_binary_data_typecasters, register_binary_typecasters
+# Import the new task module
+from pgadmin.tools.sqleditor.tasks import task_manager
 
 MODULE_NAME = 'sqleditor'
 TRANSACTION_STATUS_CHECK_FAILED = gettext("Transaction status check failed.")
@@ -154,6 +156,9 @@ class SqlEditorModule(PgAdminModule):
             'sqleditor.nlq_chat_stream',
             'sqleditor.explain_analyze_stream',
             'sqleditor.download_binary_data',
+            'sqleditor.execute_sql_async',
+            'sqleditor.task_status',
+            'sqleditor.task_result',
         ]
 
     def on_logout(self):
@@ -3219,3 +3224,130 @@ optimization recommendations."""
     )
     response.direct_passthrough = True
     return response
+
+
+def extract_sql_from_network_parameters(data, args, form):
+    """
+    Helper function to extract SQL from request parameters.
+    This follows the same pattern as used in query_tool_start.
+    """
+    if data:
+        _data = json.loads(data)
+        return _data['sql']
+    elif args and 'sql' in args:
+        return unquote(args['sql'])
+    elif form and 'sql' in form:
+        return form['sql']
+    return None
+
+
+@blueprint.route(
+    '/query_tool/start_async/<int:trans_id>',
+    methods=["PUT", "POST"],
+    endpoint='execute_sql_async'
+)
+@pga_login_required
+def execute_sql_async(trans_id):
+    """
+    Execute SQL query asynchronously using RQ task queue.
+    Args:
+        trans_id: Transaction ID
+    """
+    sql = extract_sql_from_network_parameters(
+        request.data, request.args, request.form
+    )
+    
+    if sql is None:
+        return bad_request(
+            errormsg=gettext('No SQL query provided')
+        )
+    
+    connect = 'connect' in request.args and request.args['connect'] == '1'
+    
+    # Use the existing check_and_upgrade_to_qt if needed
+    is_error, errmsg = check_and_upgrade_to_qt(trans_id, connect)
+    if is_error:
+        return make_json_response(
+            success=0,
+            errormsg=errmsg,
+            info=ERROR_MSG_FAIL_TO_PROMOTE_QT,
+            status=404
+        )
+    
+    try:
+        # Enqueue the task
+        task_id = task_manager.enqueue_task(sql, trans_id, session, connect)
+        
+        return make_json_response(
+            success=1,
+            data={
+                'task_id': task_id,
+                'status': 'queued'
+            }
+        )
+    except Exception as e:
+        current_app.logger.error(f'Error enqueueing SQL task: {str(e)}')
+        return internal_server_error(
+            errormsg=str(e)
+        )
+
+
+@blueprint.route(
+    '/task/<task_id>/status',
+    methods=["GET"],
+    endpoint='task_status'
+)
+@pga_login_required
+def get_task_status(task_id):
+    """
+    Get the status of an asynchronous task.
+    Args:
+        task_id: Task ID
+    """
+    status = task_manager.get_task_status(task_id)
+    
+    if status['status'] == 'not_found':
+        return make_json_response(
+            success=0,
+            errormsg=status.get('error', gettext('Task not found')),
+            status=404
+        )
+    
+    return make_json_response(
+        success=1,
+        data=status
+    )
+
+
+@blueprint.route(
+    '/task/<task_id>/result',
+    methods=["GET"],
+    endpoint='task_result'
+)
+@pga_login_required
+def get_task_result(task_id):
+    """
+    Get the result of a completed asynchronous task.
+    Args:
+        task_id: Task ID
+    """
+    result = task_manager.get_task_result(task_id)
+    
+    if not result.get('success') and result.get('error') == gettext('Task is not completed yet'):
+        return make_json_response(
+            success=0,
+            errormsg=result['error'],
+            status=202
+        )
+    
+    if not result.get('success'):
+        return make_json_response(
+            success=0,
+            errormsg=result.get('error', gettext('Failed to get task result')),
+            status=500
+        )
+    
+    return make_json_response(
+        success=1,
+        data=result
+    )

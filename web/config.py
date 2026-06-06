@@ -532,6 +532,13 @@ TEST_SQLITE_PATH = os.path.join(DATA_DIR, 'test_pgadmin4.db')
 THREADED_MODE = True
 
 ##########################################################################
+# Redis and RQ (Redis Queue) configuration for async task processing
+##########################################################################
+# Redis connection URL - can be configured via environment variable
+# Format: redis://[[username]:[password]]@[host]:[port]/[db-number]
+REDIS_URL = env('REDIS_URL', 'redis://localhost:6379/0')
+
+##########################################################################
 # Do not allow SQLALCHEMY to track modification as it is going to be
 # deprecated in future
 ##########################################################################
