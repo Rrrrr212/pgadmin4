@@ -329,6 +329,10 @@ MAX_SESSION_IDLE_TIME = 60
 ##########################################################################
 CONFIG_DATABASE_URI = ''
 
+# Settings for connection pool (only applicable when using PostgreSQL as external config database)
+SQLALCHEMY_POOL_SIZE = 20
+SQLALCHEMY_MAX_OVERFLOW = 10
+
 ##########################################################################
 # User account and settings storage
 ##########################################################################
