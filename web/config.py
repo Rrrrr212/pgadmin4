@@ -25,10 +25,10 @@ if sys.path[0] != root:
 
 # The config database connection pool size.
 # Setting this to 0 will remove any limit.
-CONFIG_DATABASE_CONNECTION_POOL_SIZE = 5
+CONFIG_DATABASE_CONNECTION_POOL_SIZE = 20
 # The number of connections allowed to overflow beyond
 # the connection pool size.
-CONFIG_DATABASE_CONNECTION_MAX_OVERFLOW = 100
+CONFIG_DATABASE_CONNECTION_MAX_OVERFLOW = 10
 
 from pgadmin.utils import env, IS_WIN, fs_short_path
 from version import APP_VERSION, APP_RELEASE, APP_REVISION, APP_SUFFIX, \
