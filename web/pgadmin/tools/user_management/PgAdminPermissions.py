@@ -25,7 +25,6 @@ class AllPermissionTypes:
     tools_schema_diff = 'tools_schema_diff'
     tools_grant_wizard = 'tools_grant_wizard'
     tools_ai = 'tools_ai'
-    tools_docgen = 'tools_docgen'
     storage_add_folder = 'storage_add_folder'
     storage_remove_folder = 'storage_remove_folder'
     change_password = 'change_password'
@@ -116,11 +115,6 @@ class PgAdminPermissions:
             AllPermissionCategories.tools,
             AllPermissionTypes.tools_ai,
             gettext("AI Reports")
-        )
-        self.add_permission(
-            AllPermissionCategories.tools,
-            AllPermissionTypes.tools_docgen,
-            gettext("Database Documentation Generator")
         )
         self.add_permission(
             AllPermissionCategories.storage_manager,
