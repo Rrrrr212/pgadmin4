@@ -15,7 +15,7 @@ def check_external_config_db(database_uri):
     Check if external config database exists if it
     is being used.
     """
-    engine = create_engine(database_uri, pool_size=1, max_overflow=0)
+    engine = create_engine(database_uri)
     try:
         connection = engine.connect()
         if inspect(engine).has_table("server"):
