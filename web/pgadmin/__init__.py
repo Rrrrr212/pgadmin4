@@ -338,12 +338,6 @@ def create_app(app_name=None):
     if config.CONFIG_DATABASE_URI is not None and \
             len(config.CONFIG_DATABASE_URI) > 0:
         app.config['SQLALCHEMY_DATABASE_URI'] = config.CONFIG_DATABASE_URI
-        if config.CONFIG_DATABASE_URI.startswith(
-                ('postgresql://', 'postgresql+')):
-            app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-                'pool_size': 20,
-                'max_overflow': 10
-            }
     else:
         app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///{0}?timeout={1}' \
             .format(config.SQLITE_PATH.replace('\\', '/'),
