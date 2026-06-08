@@ -3044,6 +3044,67 @@ def nlq_chat_stream(trans_id):
     response.direct_passthrough = True
     return response
 
+import redis
+from rq import Queue
+from flask import jsonify
+
+def get_rq_queue():
+    redis_url = current_app.config.get('REDIS_URL', 'redis://localhost:6379/0')
+    conn = redis.from_url(redis_url)
+    return Queue(connection=conn)
+
+def do_execute_sql(sql):
+    # Dummy block simulating synchronous execution
+    import time
+    time.sleep(2)
+    return {"status": "success", "result": f"Executed: {sql}"}
+
+@blueprint.route('/execute_sql', methods=['POST'])
+@pga_login_required
+def execute_sql():
+    data = request.json or {}
+    sql = data.get('sql')
+    if not sql:
+        return bad_request(errormsg="SQL query is required")
+        
+    q = get_rq_queue()
+    task = q.enqueue(do_execute_sql, sql)
+    
+    return make_json_response(data={'task_id': task.get_id()})
+
+@blueprint.route('/task/<task_id>/status', methods=['GET'])
+@pga_login_required
+def task_status(task_id):
+    q = get_rq_queue()
+    task = q.fetch_job(task_id)
+    
+    if not task:
+        return make_json_response(status=404, success=0, errormsg="Task not found")
+        
+    return jsonify({
+        'task_id': task.get_id(),
+        'status': task.get_status(),
+        'result': task.result
+    })
+
+@blueprint.route('/task/<task_id>/result', methods=['GET'])
+@pga_login_required
+def task_result(task_id):
+    q = get_rq_queue()
+    task = q.fetch_job(task_id)
+    
+    if not task:
+        return make_json_response(status=404, success=0, errormsg="Task not found")
+        
+    if task.is_finished:
+        return jsonify({
+            'task_id': task.get_id(),
+            'status': task.get_status(),
+            'result': task.result
+        })
+    else:
+        return make_json_response(status=202, success=0, errormsg="Task is not finished yet")
+
 
 def _nlq_sse_event(data: dict) -> bytes:
     """Format data as an SSE event with padding for buffer flushing.
