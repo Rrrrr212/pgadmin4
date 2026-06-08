@@ -109,8 +109,6 @@
     "date-fns": "^4.1.0",
     "diff-arrays-of-objects": "^1.1.10",
     "dompurify": "^3.4.1",
-    "echarts": "^5.6.0",
-    "echarts-for-react": "^3.0.2",
     "hotkeys-js": "^4.0.3",
     "html-to-image": "1.11.11",
     "immutability-helper": "^3.1.1",
