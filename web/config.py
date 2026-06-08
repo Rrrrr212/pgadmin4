@@ -330,6 +330,19 @@ MAX_SESSION_IDLE_TIME = 60
 CONFIG_DATABASE_URI = ''
 
 ##########################################################################
+# Redis Configuration
+#
+# Redis is used for task queue and caching.
+# Set REDIS_URL to configure the connection.
+# Example: redis://localhost:6379/0
+##########################################################################
+REDIS_URL = ''
+REDIS_HOST = 'localhost'
+REDIS_PORT = 6379
+REDIS_DB = 0
+REDIS_PASSWORD = ''
+
+##########################################################################
 # User account and settings storage
 ##########################################################################
 
