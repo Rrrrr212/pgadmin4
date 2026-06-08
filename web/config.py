@@ -1071,6 +1071,23 @@ ALLOWED_LLM_API_URLS = [
 # Users can override this in their preferences.
 MAX_LLM_TOOL_ITERATIONS = 20
 
+##########################################################################
+# Redis and RQ Task Queue Settings
+##########################################################################
+
+# Redis connection URL for RQ task queue
+# Format: redis://[:password]@host:port/db
+REDIS_URL = env('REDIS_URL') or 'redis://localhost:6379/0'
+
+# RQ task queue name for SQL execution
+SQL_TASK_QUEUE_NAME = 'sqleditor_sql_execution'
+
+# Task result TTL in seconds (how long results are kept in Redis)
+SQL_TASK_RESULT_TTL = 3600
+
+# Task timeout in seconds (max execution time for a query)
+SQL_TASK_TIMEOUT = 300
+
 #############################################################################
 # Patch the default config with custom config and other manipulations
 #############################################################################

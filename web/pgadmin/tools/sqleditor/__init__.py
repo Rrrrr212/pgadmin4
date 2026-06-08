@@ -22,12 +22,15 @@ import json
 
 from sqlalchemy import or_
 
-from config import PG_DEFAULT_DRIVER, ALLOW_SAVE_PASSWORD
+from config import PG_DEFAULT_DRIVER, ALLOW_SAVE_PASSWORD, REDIS_URL, SQL_TASK_QUEUE_NAME
 from werkzeug.user_agent import UserAgent
 from flask import Response, url_for, render_template, session, current_app, \
     send_file
 from flask import request
 from flask_babel import gettext
+import redis
+from rq import Queue
+from rq.job import Job
 from pgadmin.tools.sqleditor.utils.query_tool_connection_check \
     import query_tool_connection_check
 from pgadmin.user_login_check import pga_login_required
@@ -154,6 +157,9 @@ class SqlEditorModule(PgAdminModule):
             'sqleditor.nlq_chat_stream',
             'sqleditor.explain_analyze_stream',
             'sqleditor.download_binary_data',
+            'sqleditor.execute_sql_async',
+            'sqleditor.get_task_status',
+            'sqleditor.get_task_result',
         ]
 
     def on_logout(self):
@@ -3043,6 +3049,271 @@ def nlq_chat_stream(trans_id):
     )
     response.direct_passthrough = True
     return response
+
+
+redis_conn = redis.from_url(REDIS_URL)
+sql_queue = Queue(name=SQL_TASK_QUEUE_NAME, connection=redis_conn)
+
+
+def execute_sql_task(sql, trans_id, session_data, connection_params):
+    """
+    RQ task function that executes SQL asynchronously.
+
+    Args:
+        sql: SQL statement to execute
+        trans_id: Transaction ID
+        session_data: Pickled session data
+        connection_params: Connection parameters dict
+
+    Returns:
+        dict: Execution result with status and data
+    """
+    from pgadmin.tools.sqleditor.utils.constant_definition import ASYNC_OK, ASYNC_EXECUTION_ABORTED
+
+    try:
+        manager = get_driver(PG_DEFAULT_DRIVER).connection_manager(
+            connection_params['sid']
+        )
+        conn = manager.connection(
+            did=connection_params['did'],
+            conn_id=connection_params['conn_id'],
+            auto_reconnect=False,
+            use_binary_placeholder=True,
+            array_to_string=True,
+            **({"database": connection_params.get('dbname')} if connection_params.get('dbname') else {})
+        )
+
+        if not conn.connected():
+            return {
+                'status': 'Error',
+                'result': 'Connection to the server has been lost.',
+                'error_info': 'CONNECTION_LOST'
+            }
+
+        status, result = conn.execute_async(
+            sql,
+            server_cursor=connection_params.get('server_cursor', False)
+        )
+
+        if not status:
+            return {
+                'status': 'Error',
+                'result': result,
+                'error_info': 'EXECUTION_FAILED'
+            }
+
+        status, result = conn.poll(formatted_exception_msg=True, no_result=True)
+
+        if not status:
+            if not conn.connected():
+                return {
+                    'status': 'Error',
+                    'result': 'Connection to the server has been lost.',
+                    'error_info': 'CONNECTION_LOST'
+                }
+            return {
+                'status': 'Error',
+                'result': result,
+                'error_info': 'POLL_FAILED'
+            }
+
+        if status == ASYNC_OK:
+            rows_affected = conn.rows_affected()
+            st, result_data = conn.async_fetchmany_2darray(1001)
+
+            messages = conn.messages()
+            additional_messages = ''.join(messages) if messages else None
+            notifies = conn.get_notifies()
+
+            columns_info = conn.get_column_info()
+
+            return {
+                'status': 'Success',
+                'result': result_data,
+                'rows_affected': rows_affected,
+                'additional_messages': additional_messages,
+                'notifies': notifies,
+                'colinfo': columns_info,
+                'transaction_status': conn.transaction_status()
+            }
+        elif status == ASYNC_EXECUTION_ABORTED:
+            return {
+                'status': 'Cancel',
+                'result': 'Query execution was cancelled.',
+                'error_info': 'EXECUTION_ABORTED'
+            }
+        else:
+            return {
+                'status': 'Busy',
+                'result': conn.messages(),
+                'error_info': 'STILL_EXECUTING'
+            }
+
+    except Exception as e:
+        return {
+            'status': 'Error',
+            'result': str(e),
+            'error_info': 'EXCEPTION'
+        }
+
+
+@blueprint.route(
+    '/execute_sql_async/<int:trans_id>',
+    methods=["PUT", "POST"],
+    endpoint='execute_sql_async'
+)
+@pga_login_required
+def execute_sql_async(trans_id):
+    """
+    This method submits a SQL execution task to the RQ queue.
+
+    Args:
+        trans_id: unique transaction id
+    """
+    sql = extract_sql_from_network_parameters(
+        request.data, request.args, request.form
+    )
+
+    connect = 'connect' in request.args and request.args['connect'] == '1'
+
+    is_error, errmsg = check_and_upgrade_to_qt(trans_id, connect)
+    if is_error:
+        return make_json_response(success=0, errormsg=errmsg,
+                                  info=ERROR_MSG_FAIL_TO_PROMOTE_QT,
+                                  status=404)
+
+    if 'gridData' not in session or str(trans_id) not in session['gridData']:
+        return make_json_response(
+            success=0,
+            errormsg=ERROR_MSG_TRANS_ID_NOT_FOUND,
+            info='DATAGRID_TRANSACTION_REQUIRED',
+            status=404
+        )
+
+    session_obj = session['gridData'][str(trans_id)]
+    transaction_object = pickle.loads(session_obj['command_obj'])
+
+    connection_params = {
+        'sid': transaction_object.sid,
+        'did': transaction_object.did,
+        'conn_id': transaction_object.conn_id,
+        'dbname': getattr(transaction_object, 'dbname', None),
+        'server_cursor': getattr(transaction_object, 'server_cursor', False),
+    }
+
+    task_id = sql_queue.enqueue(
+        execute_sql_task,
+        sql=sql,
+        trans_id=trans_id,
+        session_data=session_obj,
+        connection_params=connection_params,
+        job_timeout=300,
+        result_ttl=3600
+    ).id
+
+    return make_json_response(
+        data={
+            'task_id': task_id,
+            'status': 'Queued',
+        }
+    )
+
+
+@blueprint.route(
+    '/task/<task_id>/status',
+    methods=["GET"],
+    endpoint='get_task_status'
+)
+@pga_login_required
+def get_task_status(task_id):
+    """
+    This method returns the status of a SQL execution task.
+
+    Args:
+        task_id: Task ID
+    """
+    try:
+        job = Job.fetch(task_id, connection=redis_conn)
+        job_status = job.get_status()
+
+        status_mapping = {
+            'queued': 'Queued',
+            'started': 'Busy',
+            'finished': 'Success',
+            'failed': 'Error',
+            'deferred': 'Deferred',
+            'scheduled': 'Scheduled',
+            'stopped': 'Stopped',
+        }
+
+        return make_json_response(
+            data={
+                'task_id': task_id,
+                'status': status_mapping.get(job_status, job_status),
+                'job_status': job_status,
+            }
+        )
+    except Exception as e:
+        return make_json_response(
+            success=0,
+            errormsg=str(e),
+            status=404
+        )
+
+
+@blueprint.route(
+    '/task/<task_id>/result',
+    methods=["GET"],
+    endpoint='get_task_result'
+)
+@pga_login_required
+def get_task_result(task_id):
+    """
+    This method returns the result of a SQL execution task.
+
+    Args:
+        task_id: Task ID
+    """
+    try:
+        job = Job.fetch(task_id, connection=redis_conn)
+
+        if job.is_finished:
+            result = job.result
+            if result is None:
+                return make_json_response(
+                    success=0,
+                    errormsg='Task finished but no result available.',
+                    status=404
+                )
+            return make_json_response(data=result)
+        elif job.is_failed:
+            return make_json_response(
+                success=0,
+                errormsg=str(job.exc_info) if job.exc_info else 'Task failed.',
+                status=500
+            )
+        elif job.is_started:
+            return make_json_response(
+                data={
+                    'status': 'Busy',
+                    'result': 'Query is still executing...',
+                    'error_info': 'STILL_EXECUTING'
+                }
+            )
+        else:
+            return make_json_response(
+                data={
+                    'status': 'Queued',
+                    'result': 'Query is waiting to be executed...',
+                    'error_info': 'QUEUED'
+                }
+            )
+    except Exception as e:
+        return make_json_response(
+            success=0,
+            errormsg=str(e),
+            status=404
+        )
 
 
 def _nlq_sse_event(data: dict) -> bytes:
