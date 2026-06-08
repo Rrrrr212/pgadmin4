@@ -1,0 +1,62 @@
+name: Run backup and restore regression tests
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+  workflow_dispatch:
+
+concurrency:
+  group: '${{ github.workflow }} @ ${{ github.event.pull_request.head.label || github.head_ref || github.ref }}'
+  cancel-in-progress: true
+
+jobs:
+  backup-tests:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Update python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Python dependencies
+        run: |
+          make install-python-testing
+          . venv/bin/activate
+          python -m pip install pytest
+
+      - name: Create local runtime configuration
+        run: |
+          mkdir -p var/sessions var/storage var/azurecredentialcache
+          cat <<EOF > web/config_local.py
+          from config import *
+
+          DEBUG = True
+          SERVER_MODE = False
+          UPGRADE_CHECK_ENABLED = False
+
+          LOG_FILE = "$(pwd)/var/pgadmin4.log"
+          SESSION_DB_PATH = "$(pwd)/var/sessions"
+          STORAGE_DIR = "$(pwd)/var/storage"
+          SQLITE_PATH = "$(pwd)/var/pgadmin4.db"
+          TEST_SQLITE_PATH = "$(pwd)/var/test_pgadmin4.db"
+          AZURE_CREDENTIAL_CACHE_DIR = "$(pwd)/var/azurecredentialcache"
+          EOF
+
+      - name: Run backup and restore regression tests
+        run: |
+          . venv/bin/activate
+          cd web
+          python -m pytest regression/test_backup_restore.py -q
+
+      - name: Archive server log
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backup-test-server-log
+          path: var/pgadmin4.log
