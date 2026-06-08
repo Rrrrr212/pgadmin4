@@ -32,7 +32,6 @@ import { usePgAdmin } from '../../../../../../static/js/PgAdminProvider';
 import pgAdmin from 'sources/pgadmin';
 import { connectServer, connectServerModal } from '../connectServer';
 import { useLatestFunc } from '../../../../../../static/js/custom_hooks';
-import SqlTaskPoller from '../SqlTaskPoller';
 
 const StyledBox = styled(Box)(({theme}) => ({
   display: 'flex',
@@ -858,7 +857,6 @@ export function ResultSet() {
   const [columns, setColumns] = useState([]);
   const api = getApiInstance();
   const rsu = React.useRef(new ResultSetUtils(api, queryToolCtx, queryToolCtx.params.trans_id, queryToolCtx.params.is_query_tool));
-  const sqlTaskPoller = React.useRef(new SqlTaskPoller(api, queryToolCtx.params.trans_id));
   const [dataChangeStore, dispatchDataChange] = React.useReducer(dataChangeReducer, {});
   const [selectedRows, setSelectedRows] = useState(new Set());
   const [selectedColumns, setSelectedColumns] = useState(new Set());
@@ -920,97 +918,23 @@ export function ResultSet() {
   };
 
   const executionStartCallback = async (query, {
-    explainObject, macroSQL, external=false, reconnect=false, executeCursor=false, refreshData=false, useAsyncQueue=true
+    explainObject, macroSQL, external=false, reconnect=false, executeCursor=false, refreshData=false
   })=>{
     const yesCallback = async ()=>{
-      if (useAsyncQueue && queryToolCtx.params.is_query_tool) {
-        eventBus.fireEvent(QUERY_TOOL_EVENTS.HIGHLIGHT_ERROR, null);
-        resetSelectionAndChanges();
-        rsu.current.resetClientPKIndex();
-        setLoaderText(gettext('Submitting query to task queue...'));
-        setDataOutputQuery(query);
-        
-        try {
-          const startTime = new Date();
-          sqlTaskPoller.current.setStartTime(startTime);
-          eventBus.fireEvent(QUERY_TOOL_EVENTS.TASK_START, gettext('Waiting for the query to complete...'), startTime);
-          
-          const taskData = await sqlTaskPoller.current.submitTask(query, explainObject);
-          
-          eventBus.fireEvent(QUERY_TOOL_EVENTS.SET_MESSAGE, gettext('Query submitted. Waiting for execution...'));
-          
-          await sqlTaskPoller.current.pollForResult(
-            (resultData) => {
-              setRowsResetKey((prev)=>prev+1);
-              setQueryData(resultData);
-              if (resultData.result) {
-                setRows(rsu.current.processRows(resultData.result, rsu.current.processColumns(resultData)));
-                setColumns(rsu.current.processColumns(resultData));
-              } else {
-                setColumns([]);
-                setRows([]);
-              }
-              eventBus.fireEvent(QUERY_TOOL_EVENTS.EXECUTION_END, true);
-              eventBus.fireEvent(QUERY_TOOL_EVENTS.TASK_END, gettext('Query complete'), new Date());
-            },
-            (planJson)=>{
-              if(!layoutDocker.isTabOpen(PANELS.EXPLAIN) && !planJson) {
-                return;
-              }
-              layoutDocker.openTab({
-                id: PANELS.EXPLAIN,
-                title: gettext('Explain'),
-                content: <Explain
-                  plans={planJson}
-                  llmEnabled={llmEnabled}
-                  sql={dataOutputQuery}
-                  transId={queryToolCtx.params.trans_id}
-                  onInsertSQL={(sql) => {
-                    eventBus.fireEvent(QUERY_TOOL_EVENTS.EDITOR_SET_SQL, sql, true);
-                  }}
-                />,
-                closable: true,
-              }, PANELS.MESSAGES, 'after-tab', true);
-            },
-            (errorData)=>{
-              setColumns([]);
-              setRows([]);
-              eventBus.fireEvent(QUERY_TOOL_EVENTS.EXECUTION_END);
-              eventBus.fireEvent(QUERY_TOOL_EVENTS.SET_MESSAGE, errorData.result || errorData.errormsg);
-              eventBus.fireEvent(QUERY_TOOL_EVENTS.FOCUS_PANEL, PANELS.MESSAGES);
-              if(!external) {
-                eventBus.fireEvent(QUERY_TOOL_EVENTS.HIGHLIGHT_ERROR, errorData, executeCursor);
-              }
-            },
-            explainObject,
-            {isQueryTool: queryToolCtx.params.is_query_tool, external: external, reconnect: reconnect, executeCursor: executeCursor}
-          );
-          
-          return true;
-        } catch (error) {
-          eventBus.fireEvent(QUERY_TOOL_EVENTS.EXECUTION_END);
-          eventBus.fireEvent(QUERY_TOOL_EVENTS.HANDLE_API_ERROR, error, {
-            connectionLostCallback: ()=>{
-              eventBus.fireEvent(QUERY_TOOL_EVENTS.EXECUTION_START, query, {explainObject, external: external, reconnect: true, executeCursor: executeCursor});
-            },
-            checkTransaction: true,
-          });
-          return false;
-        }
-      } else {
-        resetSelectionAndChanges();
-        rsu.current.resetClientPKIndex();
-        setLoaderText(gettext('Waiting for the query to complete...'));
-        setDataOutputQuery(query);
-        return await rsu.current.startExecution(
-          query, explainObject, macroSQL,
-          ()=>{
-            setColumns([]);
-            setRows([]);
-          },
-          {isQueryTool: queryToolCtx.params.is_query_tool, external: external, reconnect: reconnect, executeCursor: executeCursor, refreshData: refreshData}
-        );
-      }
+      /* Reset */
+      eventBus.fireEvent(QUERY_TOOL_EVENTS.HIGHLIGHT_ERROR, null);
+      resetSelectionAndChanges();
+      rsu.current.resetClientPKIndex();
+      setLoaderText(gettext('Waiting for the query to complete...'));
+      setDataOutputQuery(query);
+      return await rsu.current.startExecution(
+        query, explainObject, macroSQL,
+        ()=>{
+          setColumns([]);
+          setRows([]);
+        },
+        {isQueryTool: queryToolCtx.params.is_query_tool, external: external, reconnect: reconnect, executeCursor: executeCursor, refreshData: refreshData}
+      );
     };
 
     const pollCallback = async ()=>{
