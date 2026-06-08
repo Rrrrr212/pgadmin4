@@ -37,7 +37,6 @@ import ErrorBoundary from '../../../static/js/helpers/ErrorBoundary';
 import { parseApiError } from '../../../static/js/api_instance';
 import SectionContainer from './components/SectionContainer';
 import Replication from './Replication';
-import SlowQueriesPanel from './SlowQueriesPanel';
 import { getExpandCell } from '../../../static/js/components/PgReactTableStyled';
 import CodeMirror from '../../../static/js/components/ReactCodeMirror';
 import GetAppRoundedIcon from '@mui/icons-material/GetAppRounded';
@@ -317,7 +316,7 @@ function Dashboard({
   const prefStore = usePreferences();
   let mainTabs = [gettext('Activity'), gettext('State')];
 
-  mainTabs.push(gettext('Configuration'), gettext('Logs'), gettext('System'), gettext('Slow Queries'));
+  mainTabs.push(gettext('Configuration'), gettext('Logs'), gettext('System'));
   if(treeNodeInfo?.server?.replication_type) {
     mainTabs.push(gettext('Replication'));
   }
@@ -825,7 +824,7 @@ function Dashboard({
   useEffect(() => {
 
     // disable replication tab
-    if(!treeNodeInfo?.server?.replication_type && mainTabVal == 6) {
+    if(!treeNodeInfo?.server?.replication_type && mainTabVal == 5) {
       setMainTabVal(0);
     }
 
@@ -1195,16 +1194,8 @@ function Dashboard({
                   }
                 </Box>
               </TabPanel>
-              {/* Slow Queries Analysis */}
-              <TabPanel value={mainTabVal} index={5} classNameRoot='Dashboard-tabPanel'>
-                <SlowQueriesPanel
-                  sid={sid}
-                  did={did}
-                  serverConnected={serverConnected}
-                />
-              </TabPanel>
               {/* Replication */}
-              <TabPanel value={mainTabVal} index={6} classNameRoot='Dashboard-tabPanel'>
+              <TabPanel value={mainTabVal} index={5} classNameRoot='Dashboard-tabPanel'>
                 <Replication key={sid} sid={sid} node={node}
                   preferences={preferences} treeNodeInfo={treeNodeInfo} nodeData={nodeData} pageVisible={props.isActive} />
               </TabPanel>
