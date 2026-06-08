@@ -339,7 +339,6 @@ CONFIG_DATABASE_URI = ''
 SQLITE_PATH = env('SQLITE_PATH') or \
     os.path.join(DATA_DIR, APP_SHORT_NAME + '.db')
 
-REDIS_URL = 'redis://localhost:6379/0'
 # SQLITE_TIMEOUT will define how long to wait before throwing the error -
 # OperationError due to database lock. On slower system, you may need to change
 # this to some higher value.
