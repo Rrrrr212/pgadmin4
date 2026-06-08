@@ -250,9 +250,6 @@ class DashboardModule(PgAdminModule):
             'dashboard.system_statistics_did',
             'dashboard.replication_slots',
             'dashboard.replication_stats',
-            'dashboard.slow_queries',
-            'dashboard.slow_queries_sid',
-            'dashboard.slow_queries_did',
         ] + pgd_replication.get_exposed_url_endpoints()
 
 
@@ -353,38 +350,6 @@ def get_data(sid, did, template, check_long_running_query=False,
 
     if only_data:
         return res['rows']
-
-    return ajax_response(
-        response=res['rows'],
-        status=200
-    )
-
-
-@blueprint.route('/slow_queries',
-                 endpoint='slow_queries', methods=['GET'])
-@blueprint.route('/slow_queries/<int:sid>',
-                 endpoint='slow_queries_sid', methods=['GET'])
-@blueprint.route('/slow_queries/<int:sid>/<int:did>',
-                 endpoint='slow_queries_did', methods=['GET'])
-@pga_login_required
-@check_precondition
-def slow_queries(sid=None, did=None):
-    """
-    This function returns TOP 10 slow queries from pg_stat_statements
-    :param sid: server id
-    :param did: database id
-    :return: Response
-    """
-    if not sid:
-        return internal_server_error(errormsg=ERROR_SERVER_ID_NOT_SPECIFIED)
-
-    sql = render_template(
-        "/".join([g.template_path, 'slow_queries.sql']), did=did
-    )
-    status, res = g.conn.execute_dict(sql)
-
-    if not status:
-        return internal_server_error(errormsg=str(res))
 
     return ajax_response(
         response=res['rows'],
