@@ -250,6 +250,9 @@ class DashboardModule(PgAdminModule):
             'dashboard.system_statistics_did',
             'dashboard.replication_slots',
             'dashboard.replication_stats',
+            'dashboard.slow_queries',
+            'dashboard.get_slow_queries_by_server_id',
+            'dashboard.get_slow_queries_by_database_id',
         ] + pgd_replication.get_exposed_url_endpoints()
 
 
@@ -355,6 +358,23 @@ def get_data(sid, did, template, check_long_running_query=False,
         response=res['rows'],
         status=200
     )
+
+
+@blueprint.route('/slow_queries/', endpoint='slow_queries')
+@blueprint.route('/slow_queries/<int:sid>', endpoint='get_slow_queries_by_server_id')
+@blueprint.route(
+    '/slow_queries/<int:sid>/<int:did>', endpoint='get_slow_queries_by_database_id'
+)
+@pga_login_required
+@check_precondition
+def slow_queries(sid=None, did=None):
+    """
+    This function returns TOP 10 slow queries from pg_stat_statements
+    :param sid: server id
+    :param did: database id
+    :return:
+    """
+    return get_data(sid, did, 'slow_queries.sql')
 
 
 def get_long_running_query_status(activities):

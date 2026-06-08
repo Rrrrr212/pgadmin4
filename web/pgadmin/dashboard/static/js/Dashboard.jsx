@@ -42,6 +42,7 @@ import CodeMirror from '../../../static/js/components/ReactCodeMirror';
 import GetAppRoundedIcon from '@mui/icons-material/GetAppRounded';
 import DownloadUtils from '../../../static/js/DownloadUtils';
 import RefreshButton from './components/RefreshButtons';
+import SlowQueriesPanel from '../../../static/js/dashboard/SlowQueriesPanel';
 
 function parseData(data) {
   let res = [];
@@ -316,7 +317,7 @@ function Dashboard({
   const prefStore = usePreferences();
   let mainTabs = [gettext('Activity'), gettext('State')];
 
-  mainTabs.push(gettext('Configuration'), gettext('Logs'), gettext('System'));
+  mainTabs.push(gettext('Configuration'), gettext('Logs'), gettext('System'), gettext('Slow Queries'));
   if(treeNodeInfo?.server?.replication_type) {
     mainTabs.push(gettext('Replication'));
   }
@@ -1194,8 +1195,12 @@ function Dashboard({
                   }
                 </Box>
               </TabPanel>
-              {/* Replication */}
+              {/* Slow Queries */}
               <TabPanel value={mainTabVal} index={5} classNameRoot='Dashboard-tabPanel'>
+                <SlowQueriesPanel key={sid + did} sid={sid} did={did} isActive={mainTabVal === 5} />
+              </TabPanel>
+              {/* Replication */}
+              <TabPanel value={mainTabVal} index={6} classNameRoot='Dashboard-tabPanel'>
                 <Replication key={sid} sid={sid} node={node}
                   preferences={preferences} treeNodeInfo={treeNodeInfo} nodeData={nodeData} pageVisible={props.isActive} />
               </TabPanel>
