@@ -42,7 +42,6 @@ import CodeMirror from '../../../static/js/components/ReactCodeMirror';
 import GetAppRoundedIcon from '@mui/icons-material/GetAppRounded';
 import DownloadUtils from '../../../static/js/DownloadUtils';
 import RefreshButton from './components/RefreshButtons';
-import SlowQueriesPanel from './SlowQueriesPanel.jsx';
 
 function parseData(data) {
   let res = [];
@@ -317,7 +316,7 @@ function Dashboard({
   const prefStore = usePreferences();
   let mainTabs = [gettext('Activity'), gettext('State')];
 
-  mainTabs.push(gettext('Configuration'), gettext('Logs'), gettext('System'), gettext('Slow Queries'));
+  mainTabs.push(gettext('Configuration'), gettext('Logs'), gettext('System'));
   if(treeNodeInfo?.server?.replication_type) {
     mainTabs.push(gettext('Replication'));
   }
@@ -1133,83 +1132,73 @@ function Dashboard({
                 ></PgTable>}
               </TabPanel>
               {/* System Statistics */}
-          <TabPanel value={mainTabVal} index={4} classNameRoot='Dashboard-tabPanel systemStorage'>
-            <Box height="100%" display="flex" flexDirection="column">
-              {ssMsg === 'installed' && did === ldid ?
-                <ErrorBoundary>
-                  <Box>
-                    <Tabs
-                      value={systemStatsTabVal}
-                      onChange={systemStatsTabChanged}
-                    >
-                      {systemStatsTabs.map((tabValue) => {
-                        return <Tab key={tabValue} label={tabValue} />;
-                      })}
-                    </Tabs>
-                  </Box>
-                  <TabPanel value={systemStatsTabVal} index={0} classNameRoot='Dashboard-tabPanel'>
-                    <Summary
-                      key={sid + did}
-                      preferences={preferences}
-                      sid={sid}
-                      did={did}
-                      pageVisible={props.isActive}
-                      serverConnected={serverConnected}
-                    />
-                  </TabPanel>
-                  <TabPanel value={systemStatsTabVal} index={1} classNameRoot='Dashboard-tabPanel'>
-                    <CpuDetails
-                      key={sid + did}
-                      preferences={preferences}
-                      sid={sid}
-                      did={did}
-                      pageVisible={props.isActive}
-                      serverConnected={serverConnected}
-                    />
-                  </TabPanel>
-                  <TabPanel value={systemStatsTabVal} index={2} classNameRoot='Dashboard-tabPanel'>
-                    <Memory
-                      key={sid + did}
-                      preferences={preferences}
-                      sid={sid}
-                      did={did}
-                      pageVisible={props.isActive}
-                      serverConnected={serverConnected}
-                    />
-                  </TabPanel>
-                  <TabPanel value={systemStatsTabVal} index={3} classNameRoot='Dashboard-tabPanel'>
-                    <Storage
-                      key={sid + did}
-                      preferences={preferences}
-                      sid={sid}
-                      did={did}
-                      pageVisible={props.isActive}
-                      serverConnected={serverConnected}
-                      systemStatsTabVal={systemStatsTabVal}
-                    />
-                  </TabPanel>
-                </ErrorBoundary> :
-                <div className='Dashboard-emptyPanel'>
-                  <EmptyPanelMessage text={ssMsg}/>
-                </div>
-              }
-            </Box>
-          </TabPanel>
-          {/* Slow Queries */}
-          <TabPanel value={mainTabVal} index={5} classNameRoot='Dashboard-tabPanel'>
-            <SlowQueriesPanel
-              sid={sid}
-              did={did}
-              serverConnected={serverConnected}
-            />
-          </TabPanel>
-          {/* Replication */}
-          {treeNodeInfo?.server?.replication_type && (
-            <TabPanel value={mainTabVal} index={6} classNameRoot='Dashboard-tabPanel'>
-              <Replication key={sid} sid={sid} node={node}
-                preferences={preferences} treeNodeInfo={treeNodeInfo} nodeData={nodeData} pageVisible={props.isActive} />
-            </TabPanel>
-          )}
+              <TabPanel value={mainTabVal} index={4} classNameRoot='Dashboard-tabPanel systemStorage'>
+                <Box height="100%" display="flex" flexDirection="column">
+                  {ssMsg === 'installed' && did === ldid ?
+                    <ErrorBoundary>
+                      <Box>
+                        <Tabs
+                          value={systemStatsTabVal}
+                          onChange={systemStatsTabChanged}
+                        >
+                          {systemStatsTabs.map((tabValue) => {
+                            return <Tab key={tabValue} label={tabValue} />;
+                          })}
+                        </Tabs>
+                      </Box>
+                      <TabPanel value={systemStatsTabVal} index={0} classNameRoot='Dashboard-tabPanel'>
+                        <Summary
+                          key={sid + did}
+                          preferences={preferences}
+                          sid={sid}
+                          did={did}
+                          pageVisible={props.isActive}
+                          serverConnected={serverConnected}
+                        />
+                      </TabPanel>
+                      <TabPanel value={systemStatsTabVal} index={1} classNameRoot='Dashboard-tabPanel'>
+                        <CpuDetails
+                          key={sid + did}
+                          preferences={preferences}
+                          sid={sid}
+                          did={did}
+                          pageVisible={props.isActive}
+                          serverConnected={serverConnected}
+                        />
+                      </TabPanel>
+                      <TabPanel value={systemStatsTabVal} index={2} classNameRoot='Dashboard-tabPanel'>
+                        <Memory
+                          key={sid + did}
+                          preferences={preferences}
+                          sid={sid}
+                          did={did}
+                          pageVisible={props.isActive}
+                          serverConnected={serverConnected}
+                        />
+                      </TabPanel>
+                      <TabPanel value={systemStatsTabVal} index={3} classNameRoot='Dashboard-tabPanel'>
+                        <Storage
+                          key={sid + did}
+                          preferences={preferences}
+                          sid={sid}
+                          did={did}
+                          pageVisible={props.isActive}
+                          serverConnected={serverConnected}
+                          systemStatsTabVal={systemStatsTabVal}
+                        />
+                      </TabPanel>
+                    </ErrorBoundary> :
+                    <div className='Dashboard-emptyPanel'>
+                      <EmptyPanelMessage text={ssMsg}/>
+                    </div>
+                  }
+                </Box>
+              </TabPanel>
+              {/* Replication */}
+              <TabPanel value={mainTabVal} index={5} classNameRoot='Dashboard-tabPanel'>
+                <Replication key={sid} sid={sid} node={node}
+                  preferences={preferences} treeNodeInfo={treeNodeInfo} nodeData={nodeData} pageVisible={props.isActive} />
+              </TabPanel>
             </Box>
           </Box>
         </Box>
