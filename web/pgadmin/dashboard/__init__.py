@@ -232,6 +232,9 @@ class DashboardModule(PgAdminModule):
             'dashboard.activity',
             'dashboard.get_activity_by_server_id',
             'dashboard.get_activity_by_database_id',
+            'dashboard.slow_queries',
+            'dashboard.get_slow_queries_by_server_id',
+            'dashboard.get_slow_queries_by_database_id',
             'dashboard.locks',
             'dashboard.get_locks_by_server_id',
             'dashboard.get_locks_by_database_id',
@@ -420,6 +423,31 @@ def dashboard_stats(sid=None, did=None):
         response=resp_data,
         status=200
     )
+
+
+@blueprint.route('/slow_queries/', endpoint='slow_queries')
+@blueprint.route('/slow_queries/<int:sid>', endpoint='get_slow_queries_by_server_id')
+@blueprint.route(
+    '/slow_queries/<int:sid>/<int:did>', endpoint='get_slow_queries_by_database_id'
+)
+@pga_login_required
+@check_precondition
+def slow_queries(sid=None, did=None):
+    """
+    This function returns TOP 10 slow queries
+    :param sid: server id
+    :return:
+    """
+    # Check if pg_stat_statements is installed
+    check_sql = "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'"
+    status, res = g.conn.execute_scalar(check_sql)
+    if not status or not res:
+        return ajax_response(
+            response=[],
+            status=200
+        )
+
+    return get_data(sid, did, 'slow_queries.sql')
 
 
 @blueprint.route('/activity/', endpoint='activity')
